@@ -22,5 +22,6 @@ namespace api.DTOs.Authentication.Requests
     {
         Customer,
         Owner,
+        Admin,
     }
 }

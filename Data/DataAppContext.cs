@@ -21,8 +21,8 @@ namespace api.Data
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
-            base.OnModelCreating(builder);
             builder.ApplyConfigurationsFromAssembly(typeof(RoleEntityType).Assembly);
+            base.OnModelCreating(builder);
         }
     }
 }

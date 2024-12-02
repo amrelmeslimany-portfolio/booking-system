@@ -72,7 +72,7 @@ namespace api.Data.Repository.Hotel
             await _context.SaveChangesAsync();
         }
 
-        public async Task<List<TopHotel>> GetTopHotels(int? count = 10)
+        public async Task<List<TopHotel>> GetTop(int? count = 10)
         {
             return await _context
                 .Hotels.Select(item => new TopHotel
@@ -86,7 +86,17 @@ namespace api.Data.Repository.Hotel
                 .OrderByDescending(i => i.BookingsCount)
                 .Take(count ?? 10)
                 .ToListAsync();
-          
+        }
+
+        public async Task<object> LastMonths(int? lastMonthCount = 2)
+        {
+            return await _context
+                .Hotels.AsNoTracking()
+                .Where(h => h.CreatedAt.Month >= (DateTime.Now.Month - lastMonthCount))
+                .GroupBy(b => b.CreatedAt.Date)
+                .Select(h => new { h.Key, HotelCount = h.Count() })
+                .OrderBy(h => h.Key)
+                .ToListAsync();
         }
     }
 }

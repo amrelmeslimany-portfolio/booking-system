@@ -100,7 +100,7 @@ namespace api.Controllers
         {
             try
             {
-                var hotels = await hotelRepository.GetTopHotels(
+                var hotels = await hotelRepository.GetTop(
                     count > 20 ? 20
                     : count <= 0 ? 10
                     : count

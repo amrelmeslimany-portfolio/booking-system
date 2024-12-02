@@ -4,6 +4,7 @@ namespace api.Data.Repository.Hotel
 {
     public interface IHotelRepository : IRepository<HotelModel>
     {
-        public Task<List<TopHotel>> GetTopHotels(int? count = 10);
+        public Task<List<TopHotel>> GetTop(int? count = 10);
+        public Task<object> LastMonths(int? lastMonthCount);
     }
 }

@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using api.DTOs.Authentication;
 using api.DTOs.Authentication.Requests;
 using api.DTOs.Authentication.Responses;
@@ -62,6 +63,8 @@ namespace api.Controllers
                     if (roleResult.Succeeded)
                     {
                         AuthResponse response = mapper.Map<AuthResponse>(user);
+                        var roles = await userManager.GetRolesAsync(user);
+                        response.Role = roles[0];
                         response.Token = tokenService.Generate(user, foundRole!.Name!);
                         return Ok(response);
                     }
@@ -103,6 +106,8 @@ namespace api.Controllers
 
                 AuthResponse response = mapper.Map<AuthResponse>(foundUser);
                 var foundRole = await userManager.GetRolesAsync(foundUser);
+                var roles = await userManager.GetRolesAsync(foundUser);
+                response.Role = roles[0];
                 response.Token = tokenService.Generate(foundUser, foundRole[0]);
                 return Ok(response);
             }

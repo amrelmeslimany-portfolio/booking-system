@@ -10,6 +10,7 @@ namespace api.DTOs.Authentication.Responses
         public string FirstName { get; set; } = string.Empty;
         public string LastName { get; set; } = string.Empty;
         public string Token { get; set; } = string.Empty;
+        public string Role { get; set; } = string.Empty;
         public string? Picture { get; set; }
         public string FullName
         {

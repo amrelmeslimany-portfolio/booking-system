@@ -12,7 +12,6 @@ using api.Models.Room;
 using api.Models.User;
 using api.Services.Booking;
 using AutoMapper;
-using AutoMapper.QueryableExtensions;
 using Hangfire;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -304,6 +303,7 @@ namespace api.Controllers
             );
         }
 
+        [ApiExplorerSettings(IgnoreApi = true)]
         public async Task UpdateStatus(Guid id, BookingStatus status)
         {
             var booking = await bookingRepository.FindById(id);
