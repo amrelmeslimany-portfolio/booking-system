@@ -1,12 +1,15 @@
+using System.Data;
 using System.Linq.Expressions;
 using api.Config.Enums;
+using api.Data.Repository;
 using api.DTOs.Booking.Requests;
 using api.Models.Booking;
 using api.Models.Room;
+using Hangfire;
 
 namespace api.Services.Booking;
 
-public class BookingService()
+public class BookingService(IUnitOfWork unitOfWork)
 {
     public Expression<Func<BookingModel, bool>>? CheckParams(
         bool isCustomer,
@@ -54,5 +57,24 @@ public class BookingService()
             b.CustomerId == customerId
             && (b.Status == BookingStatus.Confirmed || b.Status == BookingStatus.Pending)
         );
+    }
+
+    public async Task UpdateScaduleRoom(BookingModel booking)
+    {
+        if (booking.Job != null)
+        {
+            BackgroundJob.Delete(booking.Job.IdCheckInJob);
+            BackgroundJob.Delete(booking.Job.IdCheckOutJob);
+            booking.Job = null;
+            await unitOfWork.Booking.Update(booking);
+            await unitOfWork.SaveChanges();
+        }
+    }
+
+    public async Task UpdateStatus(Guid id, BookingStatus status)
+    {
+        var booking = await unitOfWork.Booking.FindById(id);
+        booking!.Status = status;
+        await unitOfWork.Booking.Update(booking);
     }
 }

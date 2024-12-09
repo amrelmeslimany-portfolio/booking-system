@@ -8,7 +8,6 @@ namespace api.Models.Room
 {
     public class RoomModel : BaseModel
     {
-        public Guid Id { get; set; }
         public int Capacity { get; set; }
         public decimal PricePerNight { get; set; }
         public string Description { get; set; } = string.Empty;

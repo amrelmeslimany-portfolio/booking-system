@@ -1,29 +1,22 @@
 using System.Security.Claims;
-using api.Data.Repository.Booking;
-using api.Data.Repository.Hotel;
-using api.Data.Repository.Users;
-using api.DTOs.Hotel.Responses;
-using AutoMapper;
+using api.Data.Repository;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace api.Controllers
 {
+    // TODO test
     [Route("api/[controller]")]
     [ApiController]
     [Authorize(Roles = "Admin")]
-    public class DashboardController(
-        IHotelRepository hotelRepository,
-        IBookingRepository bookingRepository,
-        IUsersRepository usersRepository
-    ) : ControllerBase
+    public class DashboardController(IUnitOfWork unitOfWork) : ControllerBase
     {
         [HttpGet("last-months-hotels")]
         public async Task<IActionResult> FindLastMonthsHotel([FromQuery] int? lastMonthCount = 3)
         {
             try
             {
-                return Ok(await hotelRepository.LastMonths(lastMonthCount));
+                return Ok(await unitOfWork.Hotel.LastMonths(lastMonthCount));
             }
             catch (Exception ex)
             {
@@ -36,7 +29,7 @@ namespace api.Controllers
         {
             try
             {
-                return Ok(await bookingRepository.GetTopLocations(lastMonthCount));
+                return Ok(await unitOfWork.Booking.GetTopLocations(lastMonthCount));
             }
             catch (Exception ex)
             {
@@ -49,7 +42,7 @@ namespace api.Controllers
         {
             try
             {
-                return Ok(await bookingRepository.GetFinanceStates());
+                return Ok(await unitOfWork.Booking.GetFinanceStates());
             }
             catch (Exception ex)
             {
@@ -64,7 +57,7 @@ namespace api.Controllers
             {
                 // Test
                 return Ok(
-                    await usersRepository.GetLastMonths(
+                    await unitOfWork.Users.GetLastMonths(
                         User.FindFirstValue(ClaimTypes.NameIdentifier)!
                     )
                 );

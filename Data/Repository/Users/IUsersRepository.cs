@@ -1,5 +1,3 @@
-using System;
-
 namespace api.Data.Repository.Users;
 
 public interface IUsersRepository

@@ -1,7 +1,5 @@
 using api.Config.Enums;
 using api.Models.Booking;
-using api.Models.Room;
-using Hangfire;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 

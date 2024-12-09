@@ -2,7 +2,7 @@ using System.Linq.Expressions;
 using System.Security.Claims;
 using api.Config.Enums;
 using api.Config.Utils.Common;
-using api.Data.Repository.Hotel;
+using api.Data.Repository;
 using api.DTOs.Hotel.Requests;
 using api.DTOs.Hotel.Responses;
 using api.Models.Hotel;
@@ -22,7 +22,7 @@ namespace api.Controllers
     [Authorize(Roles = "Owner")]
     public class HotelController(
         UserManager<AppUserModel> userManager,
-        IHotelRepository hotelRepository,
+        IUnitOfWork unitOfWork,
         IMapper mapper,
         HotelService hotelService
     ) : ControllerBase
@@ -34,7 +34,7 @@ namespace api.Controllers
             {
                 var user = await userManager.GetUserAsync(User);
 
-                if (await hotelRepository.FindWhere(c => c!.OwnerId == user!.Id) != null)
+                if (await unitOfWork.Hotel.FindWhere(c => c!.OwnerId == user!.Id) != null)
                 {
                     return BadRequest(new ProblemDetails { Title = "Owner has Hotel already" });
                 }
@@ -45,7 +45,9 @@ namespace api.Controllers
                 hotel.Owner = user!;
                 hotel.Gellary = gallery;
 
-                await hotelRepository.Create(hotel);
+                await unitOfWork.Hotel.Create(hotel);
+
+                await unitOfWork.SaveChanges();
 
                 return Ok(mapper.Map<HotelResponse>(hotel));
             }
@@ -68,21 +70,24 @@ namespace api.Controllers
             {
                 Expression<Func<HotelModel, bool>>? filterExpression = (hotel) =>
                     (status == null || status == hotel.Status)
-                    && (country == null || hotel.Location!.Country.ToLower() == country.ToLower())
-                    && (city == null || hotel.Location!.City.ToLower() == city.ToLower());
+                    && (
+                        country == null
+                        || hotel.Location!.Country.ToLower().Contains(country.ToLower())
+                    )
+                    && (city == null || hotel.Location!.City.ToLower().Contains(city.ToLower()));
 
                 FindAllParams<HotelModel> allParams =
                     new(pagination.PageNumber, pagination.PageSize, filterExpression);
 
-                var hotels = await hotelRepository
-                    .FindAll(allParams)
+                var hotels = await unitOfWork
+                    .Hotel.FindAll(allParams, "Location,Gellary,Owner")
                     .Select(item => mapper.Map<HotelListResponse>(item))
                     .ToListAsync();
 
                 return Ok(
                     new ListPaginationResponse<HotelListResponse>(
                         hotels,
-                        await hotelRepository.FindSize(filterExpression),
+                        await unitOfWork.Hotel.FindSize(filterExpression),
                         (int)allParams.PageNumber!,
                         (int)allParams.PageSize!
                     )
@@ -100,7 +105,7 @@ namespace api.Controllers
         {
             try
             {
-                var hotels = await hotelRepository.GetTop(
+                var hotels = await unitOfWork.Hotel.GetTop(
                     count > 20 ? 20
                     : count <= 0 ? 10
                     : count
@@ -118,8 +123,8 @@ namespace api.Controllers
         {
             try
             {
-                Guid ownerId = Guid.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-                HotelModel? foundHotel = await hotelRepository.FindById(ownerId);
+                string ownerId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+                HotelModel? foundHotel = await unitOfWork.Hotel.GetHotelByOwner(ownerId);
 
                 if (foundHotel == null)
                 {
@@ -140,7 +145,10 @@ namespace api.Controllers
         {
             try
             {
-                HotelModel? foundHotel = await hotelRepository.FindById(id);
+                HotelModel? foundHotel = await unitOfWork.Hotel.FindById(
+                    id,
+                    "Location,Gellary,Rooms,Owner"
+                );
 
                 if (foundHotel == null)
                 {
@@ -160,12 +168,9 @@ namespace api.Controllers
         {
             try
             {
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                string userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
 
-                HotelModel? currentHotel = await hotelRepository.FindById(
-                    Guid.Parse(userId!),
-                    true
-                );
+                HotelModel? currentHotel = await unitOfWork.Hotel.GetHotelByOwner(userId);
 
                 if (currentHotel == null)
                 {
@@ -180,7 +185,9 @@ namespace api.Controllers
 
                 hotelService.DeleteGellaryItem(currentHotel, body.RemoveGellary);
 
-                await hotelRepository.Update(currentHotel!);
+                await unitOfWork.Hotel.Update(currentHotel!);
+
+                await unitOfWork.SaveChanges();
 
                 return Ok(mapper.Map<HotelResponse>(currentHotel));
             }
@@ -195,12 +202,9 @@ namespace api.Controllers
         {
             try
             {
-                var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+                string userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
 
-                HotelModel? currentHotel = await hotelRepository.FindById(
-                    Guid.Parse(userId!),
-                    true
-                );
+                HotelModel? currentHotel = await unitOfWork.Hotel.GetHotelByOwner(userId);
 
                 if (currentHotel == null)
                 {
@@ -214,7 +218,9 @@ namespace api.Controllers
                     );
                 }
 
-                await hotelRepository.Delete(currentHotel);
+                await unitOfWork.Hotel.Delete(currentHotel);
+
+                await unitOfWork.SaveChanges();
 
                 return Ok(new { isDeleted = true, currentHotel.Name });
             }

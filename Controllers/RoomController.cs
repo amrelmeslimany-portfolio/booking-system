@@ -2,8 +2,7 @@ using System.Linq.Expressions;
 using System.Security.Claims;
 using api.Config.Enums;
 using api.Config.Utils.Common;
-using api.Data.Repository.Hotel;
-using api.Data.Repository.Room;
+using api.Data.Repository;
 using api.DTOs.Room.Requests;
 using api.DTOs.Room.Responses;
 using api.Models.Hotel;
@@ -18,11 +17,7 @@ namespace api.Controllers
     [Route("api/[controller]s")]
     [ApiController]
     [Authorize(Roles = "Owner")]
-    public class RoomController(
-        IMapper mapper,
-        IRoomRepository roomRepository,
-        IHotelRepository hotelRepository
-    ) : ControllerBase
+    public class RoomController(IMapper mapper, IUnitOfWork unitOfWork) : ControllerBase
     {
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] CreateRoomRequest body)
@@ -31,7 +26,7 @@ namespace api.Controllers
             {
                 string ownerId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
 
-                HotelModel? foundHotel = await hotelRepository.FindWhere(h =>
+                HotelModel? foundHotel = await unitOfWork.Hotel.FindWhere(h =>
                     h!.OwnerId == ownerId
                 );
 
@@ -42,7 +37,9 @@ namespace api.Controllers
 
                 RoomModel room = mapper.Map(body, new RoomModel { Hotel = foundHotel });
 
-                await roomRepository.Create(room);
+                await unitOfWork.Room.Create(room);
+
+                await unitOfWork.SaveChanges();
 
                 return Ok(mapper.Map<RoomDetailsResponse>(room));
             }
@@ -71,15 +68,15 @@ namespace api.Controllers
                 FindAllParams<RoomModel> allParams =
                     new(pagination.PageNumber, pagination.PageSize, filterExpression);
 
-                var rooms = await roomRepository
-                    .FindAll(allParams)
+                var rooms = await unitOfWork
+                    .Room.FindAll(allParams)
                     .Select(item => mapper.Map<RoomResponse>(item))
                     .ToListAsync();
 
                 return Ok(
                     new ListPaginationResponse<RoomResponse>(
                         rooms,
-                        await roomRepository.FindSize(filterExpression),
+                        await unitOfWork.Room.FindSize(filterExpression),
                         (int)allParams.PageNumber!,
                         (int)allParams.PageSize!
                     )
@@ -97,7 +94,7 @@ namespace api.Controllers
         {
             try
             {
-                var foundRoom = await roomRepository.FindById(id);
+                var foundRoom = await unitOfWork.Room.FindById(id, "Hotel.Rooms.Bookings");
                 if (foundRoom == null)
                     return NotFound(new ProblemDetails { Title = "Room not found" });
                 return Ok(mapper.Map<RoomDetailsResponse>(foundRoom));
@@ -115,16 +112,14 @@ namespace api.Controllers
             {
                 string ownerId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
 
-                RoomModel? foundRoom = await roomRepository.FindById(id);
+                RoomModel? foundRoom = await unitOfWork.Room.FindById(id, "Hotel.Owner");
 
                 if (foundRoom == null)
                 {
                     return NotFound(new ProblemDetails { Title = "Hotel not found" });
                 }
 
-                HotelModel? hotel = await hotelRepository.FindById(Guid.Parse(ownerId));
-
-                if (hotel == null || hotel?.OwnerId != ownerId)
+                if (foundRoom.Hotel == null || foundRoom.Hotel.OwnerId != ownerId)
                 {
                     return StatusCode(
                         403,
@@ -134,7 +129,9 @@ namespace api.Controllers
 
                 foundRoom = mapper.Map(body, foundRoom);
 
-                await roomRepository.Update(foundRoom);
+                await unitOfWork.Room.Update(foundRoom);
+
+                await unitOfWork.SaveChanges();
 
                 return Ok(mapper.Map<RoomDetailsResponse>(foundRoom));
             }
@@ -150,16 +147,14 @@ namespace api.Controllers
             try
             {
                 string ownerId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
-                RoomModel? foundRoom = await roomRepository.FindById(id);
+                RoomModel? foundRoom = await unitOfWork.Room.FindById(id, "Hotel.Owner,Bookings");
 
                 if (foundRoom == null)
                 {
                     return NotFound(new ProblemDetails { Title = "Hotel not found" });
                 }
 
-                HotelModel? hotel = await hotelRepository.FindById(Guid.Parse(ownerId));
-
-                if (hotel == null || hotel?.OwnerId != ownerId)
+                if (foundRoom.Hotel == null || foundRoom.Hotel?.OwnerId != ownerId)
                 {
                     return StatusCode(
                         403,
@@ -168,12 +163,23 @@ namespace api.Controllers
                 }
 
                 // TODO check this when creating bookings
-                if (foundRoom.Status == RoomStatus.Booked)
+                bool hasBookingNow = foundRoom.Bookings.Any(x =>
+                    x.Status == BookingStatus.Pending || x.Status == BookingStatus.Confirmed
+                );
+
+                if (foundRoom.Status == RoomStatus.Booked || hasBookingNow)
                 {
-                    return BadRequest(new ProblemDetails { Title = "This room is booked now" });
+                    return BadRequest(
+                        new ProblemDetails
+                        {
+                            Title = "This room is booked now or has at least booking",
+                        }
+                    );
                 }
 
-                await roomRepository.Delete(foundRoom);
+                await unitOfWork.Room.Delete(foundRoom);
+
+                await unitOfWork.SaveChanges();
 
                 return Ok(new { isDeleted = true });
             }

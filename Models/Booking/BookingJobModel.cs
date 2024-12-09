@@ -1,10 +1,10 @@
 using System;
+using api.Models.Common;
 
 namespace api.Models.Booking;
 
-public class BookingJobModel
+public class BookingJobModel : BaseModel
 {
-    public Guid Id { get; set; }
     public required string IdCheckInJob { get; set; }
     public required string IdCheckOutJob { get; set; }
     public Guid BookingId { get; set; }

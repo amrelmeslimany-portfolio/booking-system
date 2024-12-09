@@ -34,7 +34,10 @@ public class ValidateDateRange : ValidationAttribute
             return new ValidationResult(ErrorMessage);
         }
 
-        if ((endDateValue - startDateValue).Value.Hours < 12)
+        int houres = (int)endDateValue.Value.Subtract(startDateValue.Value).TotalHours;
+
+        // var houres = (endDateValue - startDateValue).Value.Hours;
+        if (houres < 12)
         {
             return new ValidationResult("Must be difference 12 hours");
         }

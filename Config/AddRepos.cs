@@ -1,8 +1,4 @@
-using System;
-using api.Data.Repository.Booking;
-using api.Data.Repository.Hotel;
-using api.Data.Repository.Room;
-using api.Data.Repository.Users;
+using api.Data.Repository;
 using api.Services.Authentication;
 using api.Services.Booking;
 using api.Services.Common;
@@ -18,15 +14,11 @@ namespace api.Config
 
             services.AddScoped<ITokenService, TokenService>();
 
-            services.AddScoped<IHotelRepository, HotelRepository>().AddSingleton<HotelService>();
+            services.AddScoped<HotelService>();
 
-            services.AddScoped<IRoomRepository, RoomRepository>();
+            services.AddScoped<BookingService>();
 
-            services
-                .AddScoped<IBookingRepository, BookingRepository>()
-                .AddSingleton<BookingService>();
-
-            services.AddScoped<IUsersRepository, UsersRepository>();
+            services.AddScoped<IUnitOfWork, UnitOfWork>();
 
             return services;
         }

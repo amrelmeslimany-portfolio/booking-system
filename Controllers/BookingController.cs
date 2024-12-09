@@ -3,8 +3,7 @@ using System.Security.Claims;
 using api.Config.Enums;
 using api.Config.Utils.Common;
 using api.Data;
-using api.Data.Repository.Booking;
-using api.Data.Repository.Room;
+using api.Data.Repository;
 using api.DTOs.Booking.Requests;
 using api.DTOs.Booking.Responses;
 using api.Models.Booking;
@@ -24,9 +23,8 @@ namespace api.Controllers
     [ApiController]
     public class BookingController(
         IMapper mapper,
-        IBookingRepository bookingRepository,
-        IRoomRepository roomRepository,
         DataAppContext context,
+        IUnitOfWork unitOfWork,
         UserManager<AppUserModel> userManager,
         BookingService bookingService
     ) : ControllerBase
@@ -44,7 +42,10 @@ namespace api.Controllers
                 AppUserModel? owner = await userManager.FindByIdAsync(customerId);
 
                 // Get room
-                RoomModel? foundRoom = await roomRepository.FindById(roomId, true);
+                RoomModel? foundRoom = await unitOfWork.Room.FindById(
+                    roomId,
+                    "Hotel.Rooms.Bookings"
+                );
 
                 // Check room status
                 if (foundRoom == null)
@@ -91,16 +92,18 @@ namespace api.Controllers
                     }
                 );
 
-                await bookingRepository.Create(createdBooking);
+                await unitOfWork.Booking.Create(createdBooking);
+
+                await unitOfWork.SaveChanges();
 
                 // Create Jobs
                 string CheckinJobId = BackgroundJob.Schedule(
-                    () => UpdateStatus(createdBooking.Id, BookingStatus.Confirmed),
+                    () => bookingService.UpdateStatus(createdBooking.Id, BookingStatus.Confirmed),
                     createdBooking.CheckInDate
                 );
 
                 string CheckOutJobId = BackgroundJob.Schedule(
-                    () => UpdateStatus(createdBooking.Id, BookingStatus.CheckedOut),
+                    () => bookingService.UpdateStatus(createdBooking.Id, BookingStatus.CheckedOut),
                     createdBooking.CheckOutDate
                 );
 
@@ -110,7 +113,9 @@ namespace api.Controllers
                     IdCheckOutJob = CheckOutJobId,
                 };
 
-                await bookingRepository.Update(createdBooking);
+                await unitOfWork.Booking.Update(createdBooking);
+
+                await unitOfWork.SaveChanges();
 
                 await transication.CommitAsync();
 
@@ -183,7 +188,10 @@ namespace api.Controllers
             {
                 var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
                 var role = User.FindFirstValue(ClaimTypes.Role);
-                BookingModel? foundBooking = await bookingRepository.FindById(id);
+                BookingModel? foundBooking = await unitOfWork.Booking.FindById(
+                    id,
+                    "Room,Customer,Room.Hotel.Location,Room.Hotel.Owner"
+                );
 
                 if (foundBooking == null)
                     return Problem(statusCode: 404, title: "No booking found");
@@ -207,7 +215,7 @@ namespace api.Controllers
             try
             {
                 string customerId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
-                BookingModel? booking = await bookingRepository.FindById(id, true);
+                BookingModel? booking = await unitOfWork.Booking.FindById(id, "Customer,Job,Room");
 
                 if (booking == null)
                     return Problem(statusCode: 404, title: "Booking not found");
@@ -228,13 +236,11 @@ namespace api.Controllers
 
                 booking.Status = BookingStatus.Cancelled;
 
-                await bookingRepository.Update(booking);
+                await unitOfWork.Booking.Update(booking);
 
-                if (booking.Job != null)
-                {
-                    BackgroundJob.Delete(booking.Job.IdCheckInJob);
-                    BackgroundJob.Delete(booking.Job.IdCheckOutJob);
-                }
+                await unitOfWork.SaveChanges();
+
+                await bookingService.UpdateScaduleRoom(booking);
 
                 return Ok(new { isSuccess = true });
             }
@@ -251,7 +257,10 @@ namespace api.Controllers
             try
             {
                 string ownerId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
-                BookingModel? booking = await bookingRepository.FindById(id, true);
+                BookingModel? booking = await unitOfWork.Booking.FindById(
+                    id,
+                    "Job,Room,Room.Hotel.Owner"
+                );
 
                 if (booking == null)
                     return Problem(statusCode: 404, title: "Booking not found");
@@ -264,13 +273,11 @@ namespace api.Controllers
                     return Problem(statusCode: 400, title: "Cant delete booking working now");
                 }
 
-                await bookingRepository.Delete(booking);
+                await unitOfWork.Booking.Delete(booking);
 
-                if (booking.Job != null)
-                {
-                    BackgroundJob.Delete(booking.Job.IdCheckInJob);
-                    BackgroundJob.Delete(booking.Job.IdCheckOutJob);
-                }
+                await unitOfWork.SaveChanges();
+
+                await bookingService.UpdateScaduleRoom(booking);
 
                 return Ok(new { isSuccess = true });
             }
@@ -288,27 +295,19 @@ namespace api.Controllers
             FindAllParams<BookingModel> allParams =
                 new(pagination.PageNumber, pagination.PageSize, filterExpression);
 
-            var hotels = await bookingRepository
-                .FindAll(allParams)
+            var bookings = await unitOfWork
+                .Booking.FindAll(allParams, "Customer,Room.Hotel.Owner")
                 .Select(item => mapper.Map<T>(item))
                 .ToListAsync();
 
             return Ok(
                 new ListPaginationResponse<T>(
-                    hotels,
-                    await bookingRepository.FindSize(filterExpression),
+                    bookings,
+                    await unitOfWork.Booking.FindSize(filterExpression),
                     (int)allParams.PageNumber!,
                     (int)allParams.PageSize!
                 )
             );
-        }
-
-        [ApiExplorerSettings(IgnoreApi = true)]
-        public async Task UpdateStatus(Guid id, BookingStatus status)
-        {
-            var booking = await bookingRepository.FindById(id);
-            booking!.Status = status;
-            await bookingRepository.Update(booking);
         }
     }
 }

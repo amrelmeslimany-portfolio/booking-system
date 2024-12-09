@@ -22,7 +22,7 @@ namespace api.Services.Authentication
                             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
                         ]
                     ),
-                    Expires = DateTime.UtcNow.AddDays(5),
+                    Expires = DateTime.UtcNow.AddYears(1),
                     SigningCredentials = new SigningCredentials(
                         new SymmetricSecurityKey(key),
                         SecurityAlgorithms.HmacSha384Signature
