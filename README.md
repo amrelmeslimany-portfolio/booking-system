@@ -10,7 +10,7 @@ System handles hotels and rooms bookings for customers created by asp.net 8
 - Bookings places by Customer for room
 - There is schedule for check in and check out date, automatic change status
 
-## Models
+## Models v1
 
 - User
 - Hotel
