@@ -2,7 +2,7 @@
 
 System handles hotels and rooms bookings for customers created by asp.net 8
 
-## Features
+## Features This from Notifacrtion
 
 - Owner can add, update, delete hotels with image files
 - Every hotel has rooms
